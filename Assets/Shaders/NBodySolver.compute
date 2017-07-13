@@ -1,0 +1,89 @@
+﻿#pragma kernel Solve
+
+#define NUM_THREADS 64
+#define SHARED_MEMORY_SIZE 256
+
+uint n;
+float deltaTime, softening, damping;
+float4 groupDim, threadDim;
+RWStructuredBuffer<float4> positions, velocities;
+groupshared float4 sharedPositions[SHARED_MEMORY_SIZE];
+
+
+#define WRAP(x, m) (x < m ? x : x-m)  
+#define SX(i) sharedPositions[i + threadDim.x * threadID.y]
+#define SX_SUM(i,j) sharedPositions[i + threadDim.x * j]
+
+
+float3 ParticleInteraction(float4 particlePosition, float4 interactParticlePosition, float3 particleAcceleration)
+{
+    float3 positionDifference;
+    positionDifference.x = interactParticlePosition.x - particlePosition.x;
+    positionDifference.y = interactParticlePosition.y - particlePosition.y;
+    positionDifference.z = interactParticlePosition.z - particlePosition.z;
+
+    float sqrDistance = positionDifference.x * positionDifference.x
+            + positionDifference.y * positionDifference.y
+            + positionDifference.z * positionDifference.z
+            + softening;
+
+    float sixDistance = sqrDistance * sqrDistance * sqrDistance;
+    float invCubeDistance = 1.0f / sqrt(sixDistance);
+    float accelerationScalar = interactParticlePosition.w * invCubeDistance;
+
+    particleAcceleration.x += positionDifference.x * accelerationScalar;
+    particleAcceleration.y += positionDifference.y * accelerationScalar;
+    particleAcceleration.z += positionDifference.z * accelerationScalar;
+
+    return particleAcceleration;
+}
+
+float3 ParticleAcceleration(float4 particlePosition, float3 particleAcceleration, uint3 threadID)
+{
+    for (int i = 0; i < threadDim.x; i += 4)
+    {
+        particleAcceleration = ParticleInteraction(particlePosition, SX(i), particleAcceleration);
+        particleAcceleration = ParticleInteraction(particlePosition, SX(i + 1), particleAcceleration);
+        particleAcceleration = ParticleInteraction(particlePosition, SX(i + 2), particleAcceleration);
+        particleAcceleration = ParticleInteraction(particlePosition, SX(i + 3), particleAcceleration);
+    }
+    return particleAcceleration;
+}
+
+float3 ComputeParticleAcceleration(float4 particlePosition, uint3 groupID, uint3 threadID)
+{
+    float3 particleAcceleration = float3(0.0, 0.0, 0.0);
+    uint p = threadDim.x;
+    uint q = threadDim.y;
+    uint start = n / q * threadID.y;
+    uint tile0 = start / (n / q);
+    uint tile = tile0;
+    uint finish = start + n / q;
+    
+    for (int i = start; i < finish; i += p, tile++)
+    {
+        sharedPositions[threadID.x + threadDim.x * threadID.y] = positions[WRAP(groupID.x+tile, groupDim.x) * threadDim.x + threadID.x];
+        GroupMemoryBarrierWithGroupSync();
+        particleAcceleration = ParticleAcceleration(particlePosition, particleAcceleration, threadID);
+        GroupMemoryBarrierWithGroupSync();
+    }
+    return particleAcceleration;
+}
+
+[numthreads(NUM_THREADS, 1, 1)]
+void Solve(uint3 groupID : SV_GroupID, uint3 threadID : SV_GroupThreadID)
+{
+    uint index = groupID.x * NUM_THREADS + threadID.x;
+	
+    float4 particlePosition = positions[index];
+    float4 particleVelocity = velocities[index];
+	
+    float3 particleAcceleration = ComputeParticleAcceleration(particlePosition, groupID, threadID);
+	
+    particleVelocity.xyz += particleAcceleration.xyz * deltaTime;
+    particleVelocity.xyz *= damping;
+    particlePosition.xyz += particleVelocity.xyz * deltaTime;
+	
+    positions[index] = particlePosition;
+    velocities[index] = particleVelocity;
+}
