@@ -59,7 +59,7 @@ float3 ComputeParticleAcceleration(float4 particlePosition, uint3 groupID, uint3
     uint tile0 = start / (n / q);
     uint tile = tile0;
     uint finish = start + n / q;
-    
+
     for (int i = start; i < finish; i += p, tile++)
     {
         sharedPositions[threadID.x + threadDim.x * threadID.y] = positions[WRAP(groupID.x+tile, groupDim.x) * threadDim.x + threadID.x];
@@ -74,16 +74,16 @@ float3 ComputeParticleAcceleration(float4 particlePosition, uint3 groupID, uint3
 void Solve(uint3 groupID : SV_GroupID, uint3 threadID : SV_GroupThreadID)
 {
     uint index = groupID.x * NUM_THREADS + threadID.x;
-	
+
     float4 particlePosition = positions[index];
     float4 particleVelocity = velocities[index];
-	
+
     float3 particleAcceleration = ComputeParticleAcceleration(particlePosition, groupID, threadID);
-	
+
     particleVelocity.xyz += particleAcceleration.xyz * deltaTime;
     particleVelocity.xyz *= damping;
     particlePosition.xyz += particleVelocity.xyz * deltaTime;
-	
+
     positions[index] = particlePosition;
     velocities[index] = particleVelocity;
 }

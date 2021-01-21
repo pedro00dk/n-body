@@ -80,7 +80,7 @@ public class NBody : MonoBehaviour
     {
         NBodyMaterial.SetPass(0);
         NBodyMaterial.SetBuffer("_Positions", positionsBuffer);
-        Graphics.DrawProcedural(MeshTopology.Points, N);
+        Graphics.DrawProceduralNow(MeshTopology.Points, N);
     }
 
     private void OnDestroy()
