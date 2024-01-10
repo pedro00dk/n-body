@@ -1,6 +1,6 @@
 {
-    "name": "heatwave",
-    "description": "Small heatmap comparison built with svg, canvas, webGL, and webGPU.",
+    "name": "n-body",
+    "description": "N-body implementation using WebGPU.",
     "version": "0.0.1",
     "license": "MIT",
     "type": "module",
