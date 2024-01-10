@@ -1,36 +1,33 @@
-struct HeatmapLayout {
-    size: vec2f,
-    fit: vec2f,
-    dim: vec2f,
-    edge: f32,
-    gap: f32,
-    fill: f32,
-};
+@group(0) @binding(0) var<storage, read_write> positionsIn: array<vec4f>;
+@group(0) @binding(1) var<storage, read_write> positionsOut: array<vec4f>;
+@group(0) @binding(2) var<storage, read_write> velocities: array<vec4f>;
 
-@group(0) @binding(0) var<uniform> heatmapLayout: HeatmapLayout;
-@group(0) @binding(1) var<storage, read> heatmapColors: array<u32>;
+const kDelta = 0.00025;
+const kSoftening = 0.2;
+ 
+@compute @workgroup_size(1) fn cs(@builtin(global_invocation_id) id: vec3u) {
+  let idx = id.x;
+  let position = positionsIn[idx];
+  var force = vec4f(0.0);
+  for (var i = 0; i < 1000; i++) {
+      force += computeForce(position, positionsIn[i]);
+  }
 
-@vertex
-fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-    var square = array<vec2f, 6>(
-        vec2f(-1.0, -1.0),
-        vec2f(1.0, -1.0),
-        vec2f(-1.0, 1.0),
-        vec2f(1.0, -1.0),
-        vec2f(-1.0, 1.0),
-        vec2f(1.0, 1.0),
-    );
-    return vec4f(square[i], 0.0, 1.0);
+  // Update velocity.
+  var velocity = velocities[idx];
+  velocity = velocity + force * kDelta;
+  velocities[idx] = velocity;
+
+  // Update position.
+  positionsOut[idx] = position + velocity * kDelta;
 }
 
-@fragment
-fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
-    var coord = position.xy;
-    if (bool(heatmapLayout.fill)) { coord = coord * (heatmapLayout.dim / heatmapLayout.fit); }
-    var dimCoord = floor(coord.xy / (heatmapLayout.edge + heatmapLayout.gap));
-    var cellCoord = coord.xy % (heatmapLayout.edge + heatmapLayout.gap);
-    var inGrid = f32(cellCoord.x <= heatmapLayout.edge && cellCoord.y <= heatmapLayout.edge && dimCoord.x < heatmapLayout.dim.x && dimCoord.y < heatmapLayout.dim.y);
-    var colorU = heatmapColors[u32(dimCoord.x + dimCoord.y * heatmapLayout.dim.x)];
-    var color = vec4f((vec4u(colorU) >> vec4u(0, 8, 16, 24)) & vec4u(255)) / 255;
-    return vec4f(color.rgb, color.a * inGrid);
+fn computeForce(ipos : vec4<f32>,
+                jpos : vec4<f32>,
+                ) -> vec4<f32> {
+  let d = vec4((jpos - ipos).xyz, 0);
+  let distSq = d.x*d.x + d.y*d.y + d.z*d.z + kSoftening*kSoftening;
+  let dist   = inverseSqrt(distSq);
+  let coeff  = jpos.w * (dist*dist*dist);
+  return coeff * d;
 }

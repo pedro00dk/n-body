@@ -6,10 +6,22 @@ import nbodyBfShaderSource from './shaders/nbody-bf.compute.wgsl?raw'
 import nbodyOptShaderSource from './shaders/nbody-opt.compute.wgsl?raw'
 import nbodyRenderSource from './shaders/nbody.render.wgsl?raw'
 
+/**
+ * Exponential distribution random variate generator using the given `rate` inverse scale parameter.
+ */
+const expRandom = (rate = 1) => -Math.log(Math.random()) / rate
+
+/**
+ * Scale a `v` from the [`from0`, `from1`] range to the [`to0`, `to1`] range.
+ */
+const scale = (v: number, from0 = 0, from1 = 1, to0 = 0, to1 = 1) => ((v - from0) / (from1 - from0)) * (to1 - to0) + to0
+
 const generateCloud = (count: number) => {
     const velocities = new Float32Array(count * 4)
     const positions = new Float32Array(count * 4)
+    const counts = {}
     for (let i = 0; i < positions.length; i += 4) {
+        const mass = scale(expRandom(2), 0, 5, 0.1, 20)
         velocities[i + 0] = Math.random() * 2 - 1
         velocities[i + 1] = Math.random() * 2 - 1
         velocities[i + 2] = Math.random() * 2 - 1
@@ -17,8 +29,9 @@ const generateCloud = (count: number) => {
         positions[i + 0] = Math.random() * 2 - 1
         positions[i + 1] = Math.random() * 2 - 1
         positions[i + 2] = Math.random() * 2 - 1
-        positions[i + 3] = 1
+        positions[i + 3] = mass
     }
+    console.log(counts)
     return { positions, velocities }
 }
 
@@ -31,16 +44,31 @@ const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof
     const nbodyRenderShaderModule = device.createShaderModule({ code: nbodyRenderSource })
     const nbodyBfShaderModule = device.createShaderModule({ code: nbodyBfShaderSource })
     const nbodyOptShaderModule = device.createShaderModule({ code: nbodyOptShaderSource })
-    const positionLayout: GPUVertexBufferLayout = {
-        attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x4' }],
-        arrayStride: 16,
-        stepMode: 'instance',
-    }
     const renderPipeline = device.createRenderPipeline({
         layout: 'auto',
-        vertex: { module: nbodyRenderShaderModule, entryPoint: 'vs', buffers: [positionLayout] },
-        fragment: { module: nbodyRenderShaderModule, entryPoint: 'fs', targets: [{ format }] },
-        primitive: { topology: 'triangle-list' },
+        vertex: {
+            module: nbodyRenderShaderModule,
+            entryPoint: 'vs',
+            buffers: [
+                {
+                    stepMode: 'instance',
+                    arrayStride: 16,
+                    attributes: [{ shaderLocation: 0, format: 'float32x4', offset: 0 }],
+                },
+            ],
+        },
+        fragment: {
+            module: nbodyRenderShaderModule,
+            entryPoint: 'fs',
+            targets: [{ format }],
+        },
+        primitive: {
+            topology: 'triangle-list',
+        },
+    })
+    const computePipeline = device.createComputePipeline({
+        layout: 'auto',
+        compute: { module: nbodyBfShaderModule, entryPoint: 'cs' },
     })
     const velocityBuffer = device.createBuffer({
         size: cloud.velocities.byteLength,
@@ -58,30 +86,39 @@ const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof
     device.queue.writeBuffer(positionInBuffer, 0, cloud.positions)
 
     return () => {
+        element.width = element.clientWidth
+        element.height = element.clientHeight
         const view = context.getCurrentTexture().createView()
         const renderPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [{ view, clearValue: [0, 0, 0, 1], loadOp: 'clear', storeOp: 'store' }],
         }
         const bindGroup = device.createBindGroup({
-            layout: renderPipeline.getBindGroupLayout(0),
+            layout: computePipeline.getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: { buffer: positionOutBuffer } },
-                { binding: 1, resource: { buffer: positionInBuffer } },
+                { binding: 0, resource: { buffer: positionInBuffer } },
+                { binding: 1, resource: { buffer: positionOutBuffer } },
                 { binding: 2, resource: { buffer: velocityBuffer } },
             ],
         })
 
         const encoder = device.createCommandEncoder()
-        const pass = encoder.beginRenderPass(renderPassDescriptor)
-        pass.setPipeline(renderPipeline)
-        pass.setBindGroup(0, bindGroup)
-        pass.setVertexBuffer(0, positionInBuffer)
-        pass.draw(6, cloud.positions.length / 4)
-        pass.end()
+        const computePass = encoder.beginComputePass(renderPassDescriptor)
+        computePass.setPipeline(computePipeline)
+        computePass.setBindGroup(0, bindGroup)
+        computePass.dispatchWorkgroups(1000, 1, 1)
+        computePass.end()
+        const renderPass = encoder.beginRenderPass(renderPassDescriptor)
+        renderPass.setPipeline(renderPipeline)
+        // pass.setBindGroup(0, bindGroup)
+        renderPass.setVertexBuffer(0, positionInBuffer)
+        renderPass.draw(6, cloud.positions.length / 4)
+        renderPass.end()
         device.queue.submit([encoder.finish()])
+        ;[positionInBuffer, positionOutBuffer] = [positionOutBuffer, positionInBuffer]
     }
 }
 
 const canvas = document.querySelector('canvas')!
-const draw = await renderWebgpu(canvas, generateCloud(128))
-requestAnimationFrame(() => draw())
+const draw = await renderWebgpu(canvas, generateCloud(1000))
+const d = () => (requestAnimationFrame(d), draw(), console.log('frame'))
+requestAnimationFrame(d)
