@@ -1,16 +1,18 @@
 {
     "name": "n-body",
-    "description": "N-body implementation using WebGPU.",
-    "version": "0.0.1",
-    "license": "MIT",
     "type": "module",
     "devDependencies": {
         "@webgpu/types": "0.1.40",
         "typescript": "5.3.3",
-        "vite": "5.0.11"
+        "vite": "5.0.11",
+        "vite-plugin-solid": "2.8.0"
+    },
+    "dependencies": {
+        "solid-js": "1.8.10"
     },
     "scripts": {
         "start": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "preview": "vite preview"
     }
 }
