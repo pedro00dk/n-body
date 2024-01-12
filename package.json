@@ -3,6 +3,7 @@
     "type": "module",
     "devDependencies": {
         "@webgpu/types": "0.1.40",
+        "sass": "1.69.7",
         "typescript": "5.3.3",
         "vite": "5.0.11",
         "vite-plugin-solid": "2.8.0"
