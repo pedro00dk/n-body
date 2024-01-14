@@ -36,8 +36,8 @@ const generateCloud = (count: number) => {
 }
 
 const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof generateCloud>) => {
-    const adapter = (await navigator.gpu.requestAdapter())!
-    const device = await adapter.requestDevice()
+    const adapter = (await navigator.gpu.requestAdapter({ powerPreference, forceFallbackAdapter }))!
+    const device = await adapter.requestDevice({})
     const context = element.getContext('webgpu')!
     const format = navigator.gpu.getPreferredCanvasFormat()
     context.configure({ device, format, alphaMode: 'premultiplied' })
@@ -86,8 +86,8 @@ const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof
     device.queue.writeBuffer(positionInBuffer, 0, cloud.positions)
 
     return () => {
-        element.width = element.clientWidth
-        element.height = element.clientHeight
+        // element.width = element.clientWidth
+        // element.height = element.clientHeight
         const view = context.getCurrentTexture().createView()
         const renderPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [{ view, clearValue: [0, 0, 0, 1], loadOp: 'clear', storeOp: 'store' }],
