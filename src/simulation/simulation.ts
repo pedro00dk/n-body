@@ -1,10 +1,8 @@
 /// <reference types="vite/client" />
 /// <reference types="@webgpu/types" />
-
-import './index.css'
-import nbodyBfShaderSource from './shaders/nbody-bf.compute.wgsl?raw'
-import nbodyOptShaderSource from './shaders/nbody-opt.compute.wgsl?raw'
-import nbodyRenderSource from './shaders/nbody.render.wgsl?raw'
+import nbodyBfShaderSource from '../shaders/nbody-bf.compute.wgsl?raw'
+import nbodyOptShaderSource from '../shaders/nbody-opt.compute.wgsl?raw'
+import nbodyRenderSource from '../shaders/nbody.render.wgsl?raw'
 
 /**
  * Exponential distribution random variate generator using the given `rate` inverse scale parameter.
@@ -16,7 +14,7 @@ const expRandom = (rate = 1) => -Math.log(Math.random()) / rate
  */
 const scale = (v: number, from0 = 0, from1 = 1, to0 = 0, to1 = 1) => ((v - from0) / (from1 - from0)) * (to1 - to0) + to0
 
-const generateCloud = (count: number) => {
+export const generateCloud = (count: number) => {
     const velocities = new Float32Array(count * 4)
     const positions = new Float32Array(count * 4)
     const counts = {}
@@ -29,14 +27,14 @@ const generateCloud = (count: number) => {
         positions[i + 0] = Math.random() * 2 - 1
         positions[i + 1] = Math.random() * 2 - 1
         positions[i + 2] = Math.random() * 2 - 1
-        positions[i + 3] = mass
+        positions[i + 3] = 1
     }
     console.log(counts)
     return { positions, velocities }
 }
 
-const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof generateCloud>) => {
-    const adapter = (await navigator.gpu.requestAdapter({ powerPreference, forceFallbackAdapter }))!
+export const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof generateCloud>) => {
+    const adapter = (await navigator.gpu.requestAdapter())!
     const device = await adapter.requestDevice({})
     const context = element.getContext('webgpu')!
     const format = navigator.gpu.getPreferredCanvasFormat()
@@ -117,8 +115,3 @@ const renderWebgpu = async (element: HTMLCanvasElement, cloud: ReturnType<typeof
         ;[positionInBuffer, positionOutBuffer] = [positionOutBuffer, positionInBuffer]
     }
 }
-
-const canvas = document.querySelector('canvas')!
-const draw = await renderWebgpu(canvas, generateCloud(1000))
-const d = () => (requestAnimationFrame(d), draw(), console.log('frame'))
-requestAnimationFrame(d)
