@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
-import solidPlugin from 'vite-plugin-solid'
+import solid from 'vite-plugin-solid'
 
-const base = (0, eval)('process.env.BASE') ?? '/'
-
-export default defineConfig({ base, plugins: [solidPlugin()] })
+export default defineConfig({
+    base: globalThis.eval('process.env.BASE'),
+    build: { assetsDir: './' },
+    plugins: [solid()],
+})
