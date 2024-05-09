@@ -9,13 +9,11 @@ export type Options = {
     powerPreference: GPUPowerPreference
     forceFallbackAdapter: boolean
     workloadSize: number
-
     // sim
     gConstant: number
     gSoftening: number
     delta: number
     bodies: number
-
     // state
     paused: boolean
     reset: boolean
