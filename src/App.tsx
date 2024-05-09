@@ -1,6 +1,6 @@
 import { createEffect } from 'solid-js'
 import classes from './App.module.scss'
-import { generateCloud, renderWebgpu } from './simulation/simulation'
+import { generateCloud, renderWebgpu } from './simulation'
 
 export const App = () => {
     let canvas!: HTMLCanvasElement
